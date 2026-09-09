@@ -4,7 +4,7 @@
 
 ```mermaid
 graph TB
-    Client["Client\n(HTTP / SSE)"]
+    Client["Client\n(Streamlit console, curl,\nSwagger UI — HTTP / SSE)"]
 
     subgraph FastAPI["FastAPI Application"]
         MW["Middleware\n(rate limit, metrics,\nlogging context, profiling)"]
@@ -125,3 +125,4 @@ graph LR
 | Cache Service | `app/core/cache.py` | Valkey/Redis with in-memory fallback |
 | Middleware | `app/core/middleware.py` | Metrics, logging context, profiling |
 | Auth | `app/api/v1/auth.py` | JWT creation, session management |
+| Streamlit console | `frontend/` | Web UI over the full API — see [frontend.md](frontend.md) |

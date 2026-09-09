@@ -39,6 +39,11 @@ LANGFUSE_HOST=https://cloud.langfuse.com   # or your self-hosted URL
 LANGFUSE_TRACING_ENABLED=false
 ```
 
+`.env.example` ships with tracing **disabled** and placeholder keys, so a fresh
+checkout sends nothing to Langfuse and logs `langfuse_tracing_disabled` at
+startup. Set the flag to `true` *and* supply real `pk-lf-…`/`sk-lf-…` keys
+before expecting traces to appear.
+
 Traces are also used as the data source for the [evaluation framework](evaluation.md).
 
 ---
@@ -90,8 +95,21 @@ Metrics are exposed at `GET /metrics` and scraped by Prometheus.
 | `llm_inference_duration_seconds` | Histogram | LLM call latency by model |
 | `llm_stream_duration_seconds` | Histogram | Streaming call latency by model |
 | `db_connections` | Gauge | Active database connections |
+| `session_names_generated_total` | Counter | Sessions auto-named by the title model |
 
-Grafana dashboards are pre-configured in `grafana/`. Start the full stack with `make stack-up ENV=development` to access them at [http://localhost:3000](http://localhost:3000) (admin/admin).
+Start the full stack with `make stack-up ENV=development` and open
+[http://localhost:3000](http://localhost:3000) — credentials **`admin` / `admin`**.
+
+The Prometheus datasource and one dashboard, **LLM Inference Latency**, are
+provisioned automatically from `grafana/`. It plots p95 inference duration, p95
+stream duration, average inference duration, and inference request rate — all
+from the two `llm_*_duration_seconds` histograms above. The panels use `rate()`
+over a window, so they stay empty until the agent has served a chat request.
+
+Prometheus itself is at [http://localhost:9090](http://localhost:9090), and the
+raw metrics are always available at `GET /metrics` on the API whether or not the
+monitoring stack is running. See [docker.md](docker.md#grafana) for adding
+dashboards.
 
 ---
 

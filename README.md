@@ -123,7 +123,34 @@ For a chat UI instead of curl, start the Streamlit console in a second terminal:
 make ui                            # http://localhost:8501
 ```
 
+Register an account in the UI, hit **✚ New chat**, and type. See
+[docs/frontend.md](docs/frontend.md) for the full walkthrough.
+
+To bring up Prometheus and Grafana alongside the API, use `make stack-up`
+instead of `make docker-up`.
+
 > For local development without Docker see [docs/getting-started.md](docs/getting-started.md).
+
+## Services and ports
+
+| Service | URL | Started by | Credentials |
+|---|---|---|---|
+| API (Swagger UI) | [localhost:8000/docs](http://localhost:8000/docs) | `make docker-up` | register via the API or UI |
+| **Streamlit console** | [localhost:8501](http://localhost:8501) | `make ui` | your app account |
+| PostgreSQL + pgvector | `localhost:5432` | `make docker-up` | from your `.env` (`POSTGRES_*`) |
+| **Grafana** | [localhost:3000](http://localhost:3000) | `make stack-up` | **`admin` / `admin`** |
+| Prometheus | [localhost:9090](http://localhost:9090) | `make stack-up` | none |
+| Valkey (optional cache) | `localhost:6379` | `make stack-up` | none |
+| cAdvisor | [localhost:8080](http://localhost:8080) | `make stack-up` | none |
+
+Grafana's port 3000 and cAdvisor's 8080 are common ports — if either is already
+taken on your machine that container will fail to start with an
+`address already in use` error while the rest of the stack comes up fine. Change
+the host side of the mapping in `docker-compose.yml` if that happens.
+
+Grafana arrives with its Prometheus datasource and the **LLM Inference Latency**
+dashboard already provisioned from `grafana/`, so there is nothing to configure
+after `make stack-up`. Details in [docs/docker.md](docs/docker.md#grafana).
 
 ## Documentation
 
