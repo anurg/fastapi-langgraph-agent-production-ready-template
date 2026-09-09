@@ -2,6 +2,7 @@
 
 DOCKER_COMPOSE ?= docker-compose
 ENV            ?= development
+UI_PORT        ?= 8501
 VALID_ENVS     := development staging production test
 
 # ---------------------------------------------------------------------------
@@ -46,6 +47,13 @@ prod:
 
 _serve:
 	@$(call run_with_env,./.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --loop uvloop)
+
+# ---------------------------------------------------------------------------
+# Frontend (Streamlit)
+# ---------------------------------------------------------------------------
+ui:
+	@AGENT_API_URL=$${AGENT_API_URL:-http://localhost:8000} \
+		uv run --extra ui streamlit run frontend/app.py --server.port $(UI_PORT)
 
 # ---------------------------------------------------------------------------
 # Database migrations
@@ -167,6 +175,9 @@ help:
 	@echo "  dev                  Dev server with hot reload (port 8000)"
 	@echo "  staging              Staging server"
 	@echo "  prod                 Production server"
+	@echo ""
+	@echo "Frontend:"
+	@echo "  ui                   Streamlit agent console (UI_PORT=8501, AGENT_API_URL=http://localhost:8000)"
 	@echo ""
 	@echo "Database:"
 	@echo "  migrate              Run migrations to latest (default ENV=development)"

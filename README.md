@@ -104,6 +104,7 @@ This works as a drop-in replacement anywhere `ChatOpenAI` is used in your LangGr
 - **JWT auth** with session management; rate limiting via slowapi
 - **Alembic** migrations; optional Valkey/Redis cache layer
 - **Structured logging** with request/session/user context on every line
+- **Streamlit console** covering the full API — auth, chat sessions, streaming replies
 
 ## Quickstart
 
@@ -115,6 +116,12 @@ make docker-up                     # starts API + PostgreSQL
 ```
 
 Open [http://localhost:8000/docs](http://localhost:8000/docs) to see the interactive API.
+
+For a chat UI instead of curl, start the Streamlit console in a second terminal:
+
+```bash
+make ui                            # http://localhost:8501
+```
 
 > For local development without Docker see [docs/getting-started.md](docs/getting-started.md).
 
@@ -132,6 +139,7 @@ Open [http://localhost:8000/docs](http://localhost:8000/docs) to see the interac
 | [Observability](docs/observability.md) | Langfuse, structured logging, Prometheus, profiling |
 | [Evaluation](docs/evaluation.md) | Eval framework, custom metrics, reports |
 | [Docker](docs/docker.md) | Docker, Compose, full monitoring stack |
+| [Frontend](docs/frontend.md) | Streamlit console: running it, layout, endpoint coverage |
 
 ## Project structure
 
@@ -150,6 +158,11 @@ app/
   services/        # LLM, database, memory services
 alembic/           # Database migrations
 evals/             # LLM evaluation framework
+frontend/          # Streamlit console
+  app.py           # Entry point
+  api_client.py    # Typed client for the agent API
+  state.py         # Streamlit session state
+  views/           # Auth, sidebar, chat panel
 ```
 
 ## Contributing

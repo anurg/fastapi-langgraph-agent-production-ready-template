@@ -1,0 +1,9 @@
+# Streamlit configuration for the agent console (frontend/app.py).
+# Streamlit reads this from the working directory, so run it from the repo root.
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base = "dark"
+primaryColor = "#4F8BF9"

@@ -81,6 +81,17 @@ curl -X POST http://localhost:8000/api/v1/chatbot/chat/stream \
   -d '{"messages": [{"role": "user", "content": "Hello!"}]}'
 ```
 
+## Using the web console
+
+Instead of curl, you can drive the whole API from a Streamlit UI:
+
+```bash
+make ui        # http://localhost:8501 (API assumed at http://localhost:8000)
+```
+
+It handles registration, login, chat sessions and streaming replies for you.
+See [frontend.md](frontend.md) for details.
+
 ## Customising the agent
 
 The parts you'll most likely change:

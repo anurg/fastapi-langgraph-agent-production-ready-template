@@ -7,6 +7,7 @@ This document provides essential guidelines for AI agents working on this LangGr
 ```bash
 make install              # Install deps (uv sync) + pre-commit hooks
 make dev                  # Dev server with hot reload (port 8000)
+make ui                   # Streamlit frontend console (port 8501)
 make lint                 # ruff check .
 make format               # ruff format .
 make typecheck            # uv run pyright (static type check)
@@ -40,6 +41,7 @@ app/
   schemas/         # Pydantic request/response schemas + graph state
   services/        # Business logic services
   utils/           # Shared utilities
+frontend/          # Streamlit console (app.py, api_client.py, state.py, views/)
 evals/             # LLM evaluation framework (Langfuse-based)
 scripts/           # Environment setup, Docker build scripts
 ```

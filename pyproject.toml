@@ -55,6 +55,10 @@ cache = [
     "redis>=7.4.0",
     "valkey[libvalkey]>=6.1.0",
 ]
+ui = [
+    "streamlit>=1.40.0",
+    "requests>=2.32.0",
+]
 
 [dependency-groups]
 dev = [
@@ -124,7 +128,7 @@ convention = "google"
 "__init__.py" = ["E402"]
 
 [tool.pyright]
-include = ["app", "evals"]
+include = ["app", "evals", "frontend"]
 exclude = [
     "**/__pycache__",
     "**/.venv",
