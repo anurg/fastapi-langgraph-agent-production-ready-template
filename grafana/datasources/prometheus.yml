@@ -1,0 +1,11 @@
+apiVersion: 1
+
+# Provisions the datasource that grafana/dashboards/json/*.json reference by name.
+# Without this, every panel renders "Datasource not found".
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
