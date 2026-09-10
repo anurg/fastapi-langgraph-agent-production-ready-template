@@ -71,9 +71,21 @@ cp .env.example .env.development
 
 ---
 
-## Cache (Valkey/Redis — optional)
+## Cache (Valkey/Redis)
 
 When `VALKEY_HOST` is set, the app uses Valkey/Redis for memory search caching and rate limiting. When absent, it falls back to an in-memory TTL cache (not shared across instances).
+
+> **The env var alone is not enough.** The `redis` client lives in the `cache`
+> optional extra in `pyproject.toml`, so the image must be built with
+> `uv sync --extra cache` (the Dockerfile does this). Without it the app logs
+> `redis_client_not_installed` and
+> `rate_limiter_valkey_configured_but_redis_missing`, then falls back to
+> in-memory regardless of `VALKEY_HOST`. Confirm which backend is live by
+> looking for `cache_initialized backend=redis` and `rate_limiter_using_valkey`
+> at startup.
+
+With Docker, set `VALKEY_HOST=valkey` — the Compose service name, not
+`localhost`.
 
 | Variable | Default | Description |
 | --- | --- | --- |
@@ -94,6 +106,37 @@ When `VALKEY_HOST` is set, the app uses Valkey/Redis for memory search caching a
 | `LANGFUSE_PUBLIC_KEY` | — | Langfuse project public key |
 | `LANGFUSE_SECRET_KEY` | — | Langfuse project secret key |
 | `LANGFUSE_HOST` | `https://cloud.langfuse.com` | Langfuse host (self-hosted or cloud) |
+
+With the bundled self-hosted stack, `LANGFUSE_HOST` is `http://langfuse-web:3000`
+— the Compose service name as seen from the app container, not the `localhost:3001`
+URL your browser uses.
+
+### Self-hosted Langfuse (`langfuse` compose profile)
+
+Only needed when running `make langfuse-up`. Generate each secret with
+`openssl rand -hex 32`; Compose refuses to start the profile if one is missing.
+
+| Variable | Description |
+| --- | --- |
+| `LANGFUSE_NEXTAUTH_SECRET` | Session signing secret for the UI |
+| `LANGFUSE_SALT` | Hashing salt for API keys |
+| `LANGFUSE_ENCRYPTION_KEY` | 32-byte hex key for encrypted fields |
+| `LANGFUSE_POSTGRES_PASSWORD` | Password for Langfuse's own Postgres |
+| `LANGFUSE_CLICKHOUSE_PASSWORD` | ClickHouse password |
+| `LANGFUSE_MINIO_PASSWORD` | MinIO root password |
+| `LANGFUSE_REDIS_PASSWORD` | Redis password |
+| `LANGFUSE_NEXTAUTH_URL` | Browser-facing UI URL (default `http://localhost:3001`) |
+| `LANGFUSE_MINIO_PUBLIC_URL` | Browser-facing MinIO URL (default `http://localhost:9190`) |
+| `LANGFUSE_TELEMETRY_ENABLED` | Send usage telemetry upstream (default `false`) |
+
+First-boot provisioning — these create the org, project and login user, and
+mint the API keys above. They only apply to an empty database:
+
+| Variable | Description |
+| --- | --- |
+| `LANGFUSE_INIT_ORG_ID` / `LANGFUSE_INIT_ORG_NAME` | Organization to create |
+| `LANGFUSE_INIT_PROJECT_ID` / `LANGFUSE_INIT_PROJECT_NAME` | Project to create |
+| `LANGFUSE_INIT_USER_EMAIL` / `LANGFUSE_INIT_USER_NAME` / `LANGFUSE_INIT_USER_PASSWORD` | UI login |
 
 ---
 

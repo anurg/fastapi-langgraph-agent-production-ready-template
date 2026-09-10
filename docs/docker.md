@@ -10,17 +10,44 @@ graph TB
         valkey["valkey\n(Valkey/Redis, port 6379)"]
         prometheus["prometheus\n(port 9090)"]
         grafana["grafana\n(port 3000)"]
-        cadvisor["cadvisor\n(container metrics, port 8080)"]
+        cadvisor["cadvisor\n(container metrics, host 8081)"]
+    end
+
+    subgraph lf["Langfuse profile (make langfuse-up)"]
+        lfweb["langfuse-web\n(UI, host 3001)"]
+        lfworker["langfuse-worker"]
+        lfch["langfuse-clickhouse"]
+        lfminio["langfuse-minio\n(host 9190)"]
+        lfredis["langfuse-redis"]
+        lfpg["langfuse-postgres"]
     end
 
     app --> db
-    app -.->|"optional cache\n(set VALKEY_HOST=valkey)"| valkey
+    app -.->|"cache + rate limits\n(VALKEY_HOST=valkey)"| valkey
+    app -.->|"traces"| lfweb
     prometheus -->|"scrapes /metrics"| app
     prometheus -->|"scrapes container stats"| cadvisor
     grafana --> prometheus
+    lfweb --> lfpg
+    lfweb --> lfch
+    lfworker --> lfch
+    lfworker --> lfredis
+    lfworker --> lfminio
 ```
 
-Valkey is always started but only used by the app when `VALKEY_HOST=valkey` is set in your `.env` file. Without it the app falls back to an in-memory cache.
+Ports in the diagram are **host** ports. cAdvisor listens on 8080 inside its
+container but publishes on 8081, and `langfuse-web` on 3000 inside but 3001
+outside, because 8080 and 3000 are frequently already taken.
+
+Valkey is always started, but the app only uses it when **both** conditions
+hold: `VALKEY_HOST=valkey` is set in your `.env`, and the image was built with
+the `cache` extra. The `redis` client is an optional dependency, so the
+Dockerfile passes `uv sync --extra cache`; without it the app logs
+`redis_client_not_installed` and falls back to an in-memory cache no matter
+what the env file says. See [Caching](configuration.md#cache-valkeyredis).
+
+The Langfuse services sit behind the `langfuse` compose profile and do not
+start with `make stack-up` — see [Observability](observability.md#self-hosted-langfuse).
 
 The `app` container has a health check that polls `/health` with Python's
 `urllib` (the `python:3.13-slim` base image has no `curl`). It reports
@@ -30,20 +57,28 @@ returns 503 when the database is down, which fails the probe.
 ## Compose v1 vs v2
 
 The Makefile invokes Compose through the `DOCKER_COMPOSE` variable, which
-defaults to the standalone v1 binary `docker-compose`. Recent Docker ships
-Compose as a *plugin* (`docker compose`, no hyphen) and may not install that
-binary at all. If the Docker targets fail with `docker-compose: command not
-found`, either pass the v2 form per invocation:
+detects the v2 plugin (`docker compose`, no hyphen) and falls back to the
+standalone v1 binary (`docker-compose`) only when the plugin is missing. This
+matters on WSL with Docker Desktop installed but WSL integration switched off:
+`docker-compose` there resolves to a Windows shim that aborts with *"The
+command 'docker-compose' could not be found in this WSL 2 distro"*, even though
+a working v2 plugin is present.
+
+Override it if you need a specific binary:
 
 ```bash
 make docker-up DOCKER_COMPOSE="docker compose"
 ```
 
-or set it once for your shell:
+Driving Compose directly always needs `--env-file`, since the compose file
+interpolates secrets from it:
 
 ```bash
-export DOCKER_COMPOSE="docker compose"
+docker compose --env-file .env.development ps
 ```
+
+Without it Compose fails with `required variable JWT_SECRET_KEY is missing a
+value`. The `make` targets pass it for you.
 
 ## Commands
 
@@ -62,6 +97,17 @@ make stack-up ENV=development      # start everything
 make stack-down ENV=development    # stop everything
 make stack-logs ENV=development    # tail all service logs
 ```
+
+### Self-hosted Langfuse (opt-in profile)
+
+```bash
+make langfuse-up ENV=development    # start (UI on http://localhost:3001)
+make langfuse-down ENV=development  # stop
+make langfuse-logs ENV=development  # tail web + worker
+```
+
+These map to `docker compose --profile langfuse ...`. First boot takes two to
+three minutes while ClickHouse migrations run.
 
 ### Build a custom image
 

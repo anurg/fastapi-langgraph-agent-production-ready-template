@@ -44,7 +44,75 @@ checkout sends nothing to Langfuse and logs `langfuse_tracing_disabled` at
 startup. Set the flag to `true` *and* supply real `pk-lf-…`/`sk-lf-…` keys
 before expecting traces to appear.
 
-Traces are also used as the data source for the [evaluation framework](evaluation.md).
+Traces are also used as the data source for the [evaluation framework](evaluation.md),
+so evals have nothing to score while tracing is off.
+
+---
+
+## Self-hosted Langfuse
+
+The Compose stack can run Langfuse locally, behind an opt-in `langfuse`
+profile so `make stack-up` stays light:
+
+```bash
+make langfuse-up      # UI on http://localhost:3001
+make langfuse-logs    # tail web + worker
+make langfuse-down
+```
+
+### What it starts
+
+| Service | Purpose | Host port |
+| --- | --- | --- |
+| `langfuse-web` | UI and ingestion API | 3001 |
+| `langfuse-worker` | Async trace processing | — |
+| `langfuse-clickhouse` | Trace/observation storage | — |
+| `langfuse-minio` | S3-compatible blob storage | 9190 (console 9191) |
+| `langfuse-redis` | Queues | — |
+| `langfuse-postgres` | Projects, users, settings | — |
+
+Only the UI and MinIO publish a host port; everything else is reachable on the
+Compose network only. Services and volumes are namespaced (`langfuse-*`) so
+they never collide with the app's own `db` and `valkey`, and the host ports are
+shifted off Langfuse's defaults because Grafana already owns 3000 and
+Prometheus 9090.
+
+### Version pinning
+
+The server is pinned to the **v3** images to match the `langfuse==3.9.1` SDK in
+`pyproject.toml`. Langfuse v4 replaced batch ingestion with OpenTelemetry and
+rejects older SDKs, so moving the server to v4 means bumping the SDK to
+`>=4.7.0` and reworking `app/core/observability.py` in the same change. (SDK v4
+is backwards compatible with a v3 server, so the SDK can be upgraded first.)
+
+### First-boot provisioning
+
+The `LANGFUSE_INIT_*` variables create the organization, project and login user
+on first boot, and mint the API keys from `LANGFUSE_PUBLIC_KEY` /
+`LANGFUSE_SECRET_KEY`. Nothing needs to be clicked in the UI — start the
+containers, set `LANGFUSE_TRACING_ENABLED=true`, and traces appear. Sign in
+with `LANGFUSE_INIT_USER_EMAIL` / `LANGFUSE_INIT_USER_PASSWORD`.
+
+These variables only take effect against an **empty** database. Changing them
+later has no effect unless you also recreate the `langfuse-postgres` volume.
+
+### Host vs. browser URL
+
+`LANGFUSE_HOST` must be `http://langfuse-web:3000` — the service name and
+internal port, as seen from inside the app container. Your browser uses
+`http://localhost:3001`. Pointing `LANGFUSE_HOST` at `localhost` makes the app
+try to reach itself and tracing silently fails.
+
+### Verifying it works
+
+```bash
+curl http://localhost:3001/api/public/health
+curl -u "$LANGFUSE_PUBLIC_KEY:$LANGFUSE_SECRET_KEY" \
+  "http://localhost:3001/api/public/traces?limit=5"
+```
+
+App-side, a successful connection logs `langfuse_auth_success` at startup;
+a bad key logs `langfuse_auth_failure`.
 
 ---
 

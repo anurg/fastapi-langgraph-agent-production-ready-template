@@ -38,7 +38,9 @@ sequenceDiagram
 
 Memory search results are cached to avoid repeated pgvector queries for similar questions within the same TTL window.
 
-- **With Valkey/Redis**: cache is shared across app instances. Set `VALKEY_HOST` in your `.env`.
+- **With Valkey/Redis**: cache is shared across app instances. Set `VALKEY_HOST`
+  in your `.env` *and* build the image with the `cache` extra — see
+  [Configuration](configuration.md#cache-valkeyredis).
 - **Without Valkey**: falls back to an in-memory `TTLCache` — works fine for single instances.
 
 Cache key: `memory:{user_id}:{sha256(query)[:16]}`

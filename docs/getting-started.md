@@ -20,6 +20,7 @@ cd my-agent
 cp .env.example .env.development
 # Required: OPENAI_API_KEY, JWT_SECRET_KEY
 # Optional: LANGFUSE_* keys (or set LANGFUSE_TRACING_ENABLED=false)
+# Optional: VALKEY_HOST=valkey to use the Valkey cache
 
 make install       # installs Python deps + pre-commit hooks
 make docker-up     # starts API (port 8000) + PostgreSQL
@@ -27,6 +28,19 @@ make docker-migrate # runs Alembic migrations inside the app container
 ```
 
 Open [http://localhost:8000/docs](http://localhost:8000/docs).
+
+### Optional extras
+
+```bash
+make stack-up      # adds Prometheus, Grafana and cAdvisor
+make langfuse-up   # adds self-hosted Langfuse tracing (UI on port 3001)
+make ui            # Streamlit chat console on port 8501
+```
+
+Self-hosted Langfuse needs its own secrets in `.env.development` — see
+[Observability](observability.md#self-hosted-langfuse). To use the Valkey cache
+instead of the in-memory fallback, set `VALKEY_HOST=valkey`; the Docker image
+already ships the required client.
 
 ## Option B: Local Python
 
