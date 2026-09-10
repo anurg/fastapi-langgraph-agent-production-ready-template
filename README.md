@@ -141,12 +141,32 @@ instead of `make docker-up`.
 | **Grafana** | [localhost:3000](http://localhost:3000) | `make stack-up` | **`admin` / `admin`** |
 | Prometheus | [localhost:9090](http://localhost:9090) | `make stack-up` | none |
 | Valkey (optional cache) | `localhost:6379` | `make stack-up` | none |
-| cAdvisor | [localhost:8080](http://localhost:8080) | `make stack-up` | none |
+| cAdvisor | [localhost:8081](http://localhost:8081) | `make stack-up` | none |
 
-Grafana's port 3000 and cAdvisor's 8080 are common ports — if either is already
-taken on your machine that container will fail to start with an
-`address already in use` error while the rest of the stack comes up fine. Change
-the host side of the mapping in `docker-compose.yml` if that happens.
+Grafana's port 3000 is a commonly used port — if it is already taken on your
+machine that container will fail to start with an `address already in use`
+error while the rest of the stack comes up fine. Change the host side of the
+mapping in `docker-compose.yml` if that happens.
+
+cAdvisor is published on host port **8081** (not 8080) for the same reason:
+8080 is frequently claimed by other local tooling such as a proxy or another
+dev server. Note that this kind of conflict can fail *silently* — the container
+reports itself as healthy while the host port is served by whatever grabbed it
+first, so you get an unexpected response rather than an error. If a URL returns
+something that isn't the service you expected, check who owns the port:
+
+```bash
+ss -ltnp | grep :8081
+```
+
+Only `app` (8000), `grafana` (3000), `prometheus` (9090) and `cadvisor` (8081)
+speak HTTP. `db` (5432) and `valkey` (6379) use their own wire protocols and
+will not respond in a browser — reach them with a proper client instead:
+
+```bash
+docker compose --env-file .env.development exec db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+docker compose --env-file .env.development exec valkey valkey-cli
+```
 
 Grafana arrives with its Prometheus datasource and the **LLM Inference Latency**
 dashboard already provisioned from `grafana/`, so there is nothing to configure

@@ -1,6 +1,8 @@
 .DEFAULT_GOAL := help
 
-DOCKER_COMPOSE ?= docker-compose
+# Prefer the Compose v2 plugin (`docker compose`); fall back to the standalone
+# v1 binary only if the plugin is unavailable.
+DOCKER_COMPOSE ?= $(shell docker compose version >/dev/null 2>&1 && echo 'docker compose' || echo 'docker-compose')
 ENV            ?= development
 UI_PORT        ?= 8501
 VALID_ENVS     := development staging production test

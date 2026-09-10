@@ -102,7 +102,8 @@ services:
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
     ports:
-      - "8080:8080"
+      # Host 8081: port 8080 is commonly taken by other local tooling.
+      - "8081:8080"
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:rw
