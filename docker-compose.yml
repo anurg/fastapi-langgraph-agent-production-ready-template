@@ -114,6 +114,166 @@ services:
     restart: always
 
 
+  # ---------------------------------------------------------------------------
+  # Langfuse (self-hosted, v3 — matches the pinned langfuse==3.9.1 SDK).
+  # Opt-in: these only start with `make langfuse-up` (compose profile "langfuse").
+  # Service names and volumes are namespaced so they never collide with the
+  # app's own db/valkey, and only langfuse-web and langfuse-minio publish a
+  # host port — everything else is reachable on the compose network only.
+  # ---------------------------------------------------------------------------
+  langfuse-web:
+    image: docker.io/langfuse/langfuse:3
+    profiles: ["langfuse"]
+    restart: always
+    depends_on: &langfuse-depends-on
+      langfuse-postgres:
+        condition: service_healthy
+      langfuse-minio:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_healthy
+      langfuse-clickhouse:
+        condition: service_healthy
+    ports:
+      # Host 3001: Grafana already owns 3000.
+      - "3001:3000"
+    environment: &langfuse-env
+      NEXTAUTH_URL: ${LANGFUSE_NEXTAUTH_URL:-http://localhost:3001}
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:?set LANGFUSE_NEXTAUTH_SECRET in your .env}
+      SALT: ${LANGFUSE_SALT:?set LANGFUSE_SALT in your .env}
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:?set LANGFUSE_ENCRYPTION_KEY (openssl rand -hex 32)}
+      DATABASE_URL: postgresql://langfuse:${LANGFUSE_POSTGRES_PASSWORD:?set LANGFUSE_POSTGRES_PASSWORD}@langfuse-postgres:5432/langfuse
+      TELEMETRY_ENABLED: ${LANGFUSE_TELEMETRY_ENABLED:-false}
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "true"
+      CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
+      CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD:?set LANGFUSE_CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_PASSWORD:?set LANGFUSE_MINIO_PASSWORD}
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: minio
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_PASSWORD:?set LANGFUSE_MINIO_PASSWORD}
+      # Browser-facing: must be the published host port, not the internal one.
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: ${LANGFUSE_MINIO_PUBLIC_URL:-http://localhost:9190}
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+      LANGFUSE_S3_BATCH_EXPORT_ENABLED: "false"
+      REDIS_HOST: langfuse-redis
+      REDIS_PORT: 6379
+      REDIS_AUTH: ${LANGFUSE_REDIS_PASSWORD:?set LANGFUSE_REDIS_PASSWORD}
+      REDIS_TLS_ENABLED: "false"
+      # Auto-provision the org, project, user and API keys on first boot so the
+      # app's LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY work with no clicking.
+      LANGFUSE_INIT_ORG_ID: ${LANGFUSE_INIT_ORG_ID:-}
+      LANGFUSE_INIT_ORG_NAME: ${LANGFUSE_INIT_ORG_NAME:-}
+      LANGFUSE_INIT_PROJECT_ID: ${LANGFUSE_INIT_PROJECT_ID:-}
+      LANGFUSE_INIT_PROJECT_NAME: ${LANGFUSE_INIT_PROJECT_NAME:-}
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_INIT_USER_EMAIL:-}
+      LANGFUSE_INIT_USER_NAME: ${LANGFUSE_INIT_USER_NAME:-}
+      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD:-}
+    networks:
+      - monitoring
+
+  langfuse-worker:
+    image: docker.io/langfuse/langfuse-worker:3
+    profiles: ["langfuse"]
+    restart: always
+    depends_on: *langfuse-depends-on
+    environment:
+      <<: *langfuse-env
+    networks:
+      - monitoring
+
+  langfuse-clickhouse:
+    image: docker.io/clickhouse/clickhouse-server:24.8
+    profiles: ["langfuse"]
+    restart: always
+    user: "101:101"
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD:?set LANGFUSE_CLICKHOUSE_PASSWORD}
+    volumes:
+      - langfuse-clickhouse-data:/var/lib/clickhouse
+      - langfuse-clickhouse-logs:/var/log/clickhouse-server
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 1s
+    networks:
+      - monitoring
+
+  langfuse-minio:
+    image: docker.io/minio/minio
+    profiles: ["langfuse"]
+    restart: always
+    entrypoint: sh
+    # Create the 'langfuse' bucket before starting the service.
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: ${LANGFUSE_MINIO_PASSWORD:?set LANGFUSE_MINIO_PASSWORD}
+    ports:
+      # Host 9190/9191: Prometheus already owns 9090.
+      - "9190:9000"
+      - "127.0.0.1:9191:9001"
+    volumes:
+      - langfuse-minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 1s
+    networks:
+      - monitoring
+
+  langfuse-redis:
+    image: docker.io/redis:7
+    profiles: ["langfuse"]
+    restart: always
+    command: >
+      --requirepass ${LANGFUSE_REDIS_PASSWORD:?set LANGFUSE_REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+    networks:
+      - monitoring
+
+  langfuse-postgres:
+    image: docker.io/postgres:17
+    profiles: ["langfuse"]
+    restart: always
+    environment:
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: ${LANGFUSE_POSTGRES_PASSWORD:?set LANGFUSE_POSTGRES_PASSWORD}
+      POSTGRES_DB: langfuse
+      TZ: UTC
+      PGTZ: UTC
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langfuse -d langfuse"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - langfuse-postgres-data:/var/lib/postgresql/data
+    networks:
+      - monitoring
+
 networks:
   monitoring:
     driver: bridge
@@ -122,3 +282,7 @@ volumes:
   grafana-storage:
   postgres-data:
   valkey-data:
+  langfuse-postgres-data:
+  langfuse-clickhouse-data:
+  langfuse-clickhouse-logs:
+  langfuse-minio-data:

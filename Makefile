@@ -159,6 +159,22 @@ stack-logs:
 	@APP_ENV=$(ENV) $(DOCKER_COMPOSE) --env-file .env.$(ENV) logs -f
 
 # ---------------------------------------------------------------------------
+# Docker — self-hosted Langfuse (opt-in "langfuse" compose profile)
+# ---------------------------------------------------------------------------
+langfuse-up:
+	$(call load_env_file)
+	@APP_ENV=$(ENV) $(DOCKER_COMPOSE) --env-file .env.$(ENV) --profile langfuse up -d
+	@echo "Langfuse UI: http://localhost:3001 (first boot takes 2-3 minutes)"
+
+langfuse-down:
+	$(call load_env_file)
+	@APP_ENV=$(ENV) $(DOCKER_COMPOSE) --env-file .env.$(ENV) --profile langfuse down
+
+langfuse-logs:
+	$(call load_env_file)
+	@APP_ENV=$(ENV) $(DOCKER_COMPOSE) --env-file .env.$(ENV) --profile langfuse logs -f langfuse-web langfuse-worker
+
+# ---------------------------------------------------------------------------
 # Misc
 # ---------------------------------------------------------------------------
 clean:
@@ -213,6 +229,9 @@ help:
 	@echo "  stack-up             Start entire stack"
 	@echo "  stack-down           Stop entire stack"
 	@echo "  stack-logs           Tail all service logs"
+	@echo "  langfuse-up          Start self-hosted Langfuse (UI on :3001)"
+	@echo "  langfuse-down        Stop Langfuse"
+	@echo "  langfuse-logs        Tail Langfuse web + worker logs"
 	@echo ""
 	@echo "Misc:"
 	@echo "  clean                Remove .venv, __pycache__, .pytest_cache"
@@ -224,4 +243,5 @@ help:
         docker-build docker-up docker-down docker-logs docker-migrate \
         docker-migrate-downgrade docker-migrate-history \
         stack-up stack-down stack-logs \
+        langfuse-up langfuse-down langfuse-logs \
         clean help

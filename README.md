@@ -140,8 +140,10 @@ instead of `make docker-up`.
 | PostgreSQL + pgvector | `localhost:5432` | `make docker-up` | from your `.env` (`POSTGRES_*`) |
 | **Grafana** | [localhost:3000](http://localhost:3000) | `make stack-up` | **`admin` / `admin`** |
 | Prometheus | [localhost:9090](http://localhost:9090) | `make stack-up` | none |
-| Valkey (optional cache) | `localhost:6379` | `make stack-up` | none |
+| Valkey cache | `localhost:6379` | `make stack-up` | none |
 | cAdvisor | [localhost:8081](http://localhost:8081) | `make stack-up` | none |
+| **Langfuse** | [localhost:3001](http://localhost:3001) | `make langfuse-up` | from `LANGFUSE_INIT_USER_*` |
+| MinIO (Langfuse blobs) | [localhost:9190](http://localhost:9190) | `make langfuse-up` | `minio` / `LANGFUSE_MINIO_PASSWORD` |
 
 Grafana's port 3000 is a commonly used port — if it is already taken on your
 machine that container will fail to start with an `address already in use`
@@ -212,6 +214,56 @@ deletes the Postgres, Valkey and Grafana volumes.
 > Without it compose fails with `required variable JWT_SECRET_KEY is missing a
 > value`, because the compose file interpolates secrets from that file. The
 > `make` targets already do this for you.
+
+## Tracing with self-hosted Langfuse
+
+Langfuse runs as an opt-in group of containers so the default stack stays
+light. Bring it up with:
+
+```bash
+make langfuse-up      # UI on http://localhost:3001 — first boot takes 2-3 minutes
+make langfuse-logs    # follow web + worker
+make langfuse-down
+```
+
+It adds six services — `langfuse-web`, `langfuse-worker`, `langfuse-clickhouse`,
+`langfuse-minio`, `langfuse-redis` and `langfuse-postgres` — behind the
+`langfuse` compose profile, so `make stack-up` never starts them. They are
+namespaced to stay clear of the app's own `db` and `valkey`, and everything
+except the web UI and MinIO is reachable only on the compose network.
+
+The server is pinned to the **v3** images, matching the `langfuse==3.9.1` SDK
+in `pyproject.toml`. Langfuse v4 replaced batch ingestion with OpenTelemetry
+and rejects older SDKs, so upgrading the server means upgrading the SDK and
+reworking `app/core/observability.py` at the same time.
+
+On first boot the `LANGFUSE_INIT_*` variables provision the org, project and
+login user, and mint the API keys as `LANGFUSE_PUBLIC_KEY` /
+`LANGFUSE_SECRET_KEY` from your `.env`. There is nothing to click: start the
+containers, set `LANGFUSE_TRACING_ENABLED=true`, and traces appear. Sign in to
+the UI with `LANGFUSE_INIT_USER_EMAIL` / `LANGFUSE_INIT_USER_PASSWORD`.
+
+Note that `LANGFUSE_HOST` is `http://langfuse-web:3000` — the service name, as
+seen from inside the app container — while your browser uses port 3001.
+
+Generate the secrets with `openssl rand -hex 32`; `.env.example` lists every
+one. Because the init variables only take effect on an empty database, changing
+them later means recreating the `langfuse-postgres` volume.
+
+## Caching with Valkey
+
+The app uses Valkey for its response cache and rate-limiter storage when
+`VALKEY_HOST` is set, and an in-memory fallback otherwise. Two things are
+required, not one:
+
+1. `VALKEY_HOST=valkey` in your `.env` file, and
+2. an image built with the `cache` extra — the `redis` client is an optional
+   dependency in `pyproject.toml`, and the `Dockerfile` passes
+   `uv sync --extra cache` to install it.
+
+Without the extra the app logs `rate_limiter_valkey_configured_but_redis_missing`
+and silently falls back to in-memory, which also means rate limits stop being
+shared across replicas. After changing either, rebuild: `make docker-up`.
 
 ## Documentation
 
