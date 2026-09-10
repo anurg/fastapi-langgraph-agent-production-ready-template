@@ -152,6 +152,47 @@ Grafana arrives with its Prometheus datasource and the **LLM Inference Latency**
 dashboard already provisioned from `grafana/`, so there is nothing to configure
 after `make stack-up`. Details in [docs/docker.md](docs/docker.md#grafana).
 
+## Stopping and restarting
+
+```bash
+make stack-down                    # stop and remove the containers
+make stack-up                      # bring the whole stack back
+```
+
+Use `make docker-down` / `make docker-up` if you only run the API + database
+pair. Both down targets leave the named volumes (`my-agent_postgres-data`,
+`my-agent_valkey-data`, `my-agent_grafana-storage`) in place, so your database
+rows, cache and Grafana state survive a restart.
+
+Full restart from a clean slate — after the images have been deleted, or on a
+fresh machine:
+
+```bash
+cp .env.example .env.development   # if you don't have one yet; fill in your keys
+make install                       # deps + pre-commit hooks (skip if unchanged)
+make stack-up ENV=development      # re-pulls base images and rebuilds the app image
+make docker-migrate                # apply Alembic migrations (needs the stack up)
+make ui                            # optional: Streamlit console on :8501
+```
+
+The first `stack-up` after an image cleanup re-pulls Postgres, Grafana,
+Prometheus, Valkey and cAdvisor and rebuilds `my-agent-app`, so expect a few
+minutes. Check it came up with:
+
+```bash
+curl http://localhost:8000/health
+make stack-logs                    # follow logs if anything looks wrong
+```
+
+To also discard the data, add `-v` to the down target
+(`docker compose --env-file .env.development down -v`) — this permanently
+deletes the Postgres, Valkey and Grafana volumes.
+
+> **Driving `docker compose` directly?** Always pass `--env-file .env.<env>`.
+> Without it compose fails with `required variable JWT_SECRET_KEY is missing a
+> value`, because the compose file interpolates secrets from that file. The
+> `make` targets already do this for you.
+
 ## Documentation
 
 | Guide | What it covers |
