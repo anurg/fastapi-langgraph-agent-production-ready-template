@@ -280,6 +280,7 @@ shared across replicas. After changing either, rebuild: `make docker-up`.
 | [Evaluation](docs/evaluation.md) | Eval framework, custom metrics, reports |
 | [Docker](docs/docker.md) | Docker, Compose, full monitoring stack |
 | [Frontend](docs/frontend.md) | Streamlit console: running it, layout, endpoint coverage |
+| [Using as a Template](docs/using-as-a-template.md) | Forking this repo for your own agent: what to keep, what to replace |
 
 ## Project structure
 
