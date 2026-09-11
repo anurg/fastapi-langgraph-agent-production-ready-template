@@ -180,25 +180,82 @@ app/core/langgraph/
 The nodes take `(state, config)` and return `Command` — they don't need the agent instance for
 anything except `self.llm_service`, which is better passed in than reached through.
 
-## Step 6 — Add tests
+## Step 6 — Extend the tests
 
-**There is no `tests/` directory.** This is the template's biggest gap, and the point where a complex
-agent will hurt you if you skip it. Minimum useful setup:
+The template ships a test suite that runs with no infrastructure — no database, no Valkey, no API
+key, no network:
+
+```bash
+make test          # APP_ENV=test uv run pytest -q
+make check         # lint + typecheck + test
+```
 
 ```
 tests/
-  conftest.py       # async client, throwaway DB, fake LLM
-  test_auth.py
-  test_graph.py     # graph transitions against a scripted fake LLM
-  test_tools.py
+  conftest.py           # env setup, ASGI client, FakeLLMService, agent factory
+  test_health.py        # smoke test proving the harness boots the app
+  test_sanitization.py  # XSS/escaping, email, password strength
+  test_auth_utils.py    # JWT create/verify, expiry, tampering, forged keys
+  test_prompts.py       # system prompt substitution and its failure mode
+  test_graph_utils.py   # message prep, trimming, structured-content flattening
+  test_schemas.py       # request/response validation boundaries
+  test_graph.py         # agent routing against a scripted LLM
 ```
 
-Use `langchain_core.language_models.fake_chat_models.GenericFakeChatModel` to script LLM responses,
-so graph tests are deterministic and cost nothing. Test the routing — did a tool call go to
-`tool_call`, did a plain answer go to `END` — not the model's wording.
+Two things in [conftest.py](../tests/conftest.py) are load-bearing and worth understanding before
+you extend it:
 
-Add `pytest`, `pytest-asyncio` and `httpx` to the `dev` extra, and a `test:` target to the
-[Makefile](../Makefile) alongside `check`.
+**Environment must be set before the first `app.*` import.** Several modules build singletons at
+import time — `settings`, `database_service` (which constructs a SQLAlchemy engine in `__init__`),
+`llm_service` (which instantiates every model in the registry), and `agent` in
+[chatbot.py](../app/api/v1/chatbot.py). The `os.environ` block therefore sits at module scope above
+the imports, not inside a fixture. `APP_ENV=test` also skips the JWT strength check in
+[config.py](../app/core/config.py), which is why `make test` sets it.
+
+**The LLM is faked at the service boundary, not the model boundary.** `_chat` only touches
+`llm_service.call()` and `llm_service.get_llm()`, so `FakeLLMService` replays a scripted list of
+`AIMessage` objects — no `GenericFakeChatModel`, no tool-binding to reproduce. Combined with the
+`checkpointer` parameter on `create_graph`, which accepts a `MemorySaver` in place of
+`AsyncPostgresSaver`, the whole graph runs in-process:
+
+```python
+async def test_a_tool_call_routes_through_tool_call_and_back_to_chat(make_agent, thread_config):
+    agent = await make_agent(
+        [_tool_call_message(args={"text": "world"}), AIMessage(content="done")],
+        tools=[echo],
+    )
+    result = await agent.graph.ainvoke({"messages": [HumanMessage(content="go")]}, thread_config)
+    assert result["messages"][-1].content == "done"
+```
+
+Assert on **routing and state**, not on model wording: did a tool call reach `tool_call`, did a plain
+answer reach `END`, did the tool result reach the next LLM call. Those stay true when you change the
+prompt or the model.
+
+### Characterization tests — read these before you refactor
+
+Three tests pin behaviour that is arguably wrong, so that changing it is a visible, deliberate act
+rather than a silent regression:
+
+- `test_returns_mixed_message_types` — `prepare_messages` returns a `Message` for the system prompt
+  followed by LangChain `BaseMessage` objects, so `dump_messages` emits dicts of two different
+  shapes (`role`/`content` vs `type`/`content`).
+- `test_a_raising_tool_fails_the_run_after_retries` — one raising tool aborts the whole turn, after
+  `RetryPolicy(max_attempts=3)` re-runs it twice.
+- `test_an_unknown_tool_name_fails_rather_than_hanging` — a hallucinated tool name raises `KeyError`.
+
+The last two are exactly the tool-layer hardening described in Step 3. When you add it, these tests
+should fail — update them to assert the new, better behaviour.
+
+### What is still missing
+
+- **API integration tests** — routes are only covered via `/health`. Override `get_current_session`
+  through `app.dependency_overrides`, monkeypatch the module-level `agent`, and disable the limiter.
+- **Real-database tests** — nothing exercises [database.py](../app/services/database.py) against
+  Postgres.
+- **Rate-limit coverage** — nothing asserts a 429, or that every route carries a limiter decorator,
+  despite that being the first rule in [AGENTS.md](../AGENTS.md).
+- **Typechecking of tests** — `[tool.pyright]` includes `app`, `evals` and `frontend`, not `tests`.
 
 ## Adoption checklist
 
@@ -210,7 +267,7 @@ Add `pytest`, `pytest-asyncio` and `httpx` to the `dev` extra, and a `test:` tar
 - [ ] Per-tool timeouts and result-size limits added to `_execute_tool`
 - [ ] `GraphState` has reducers on every field that parallel nodes write
 - [ ] Node implementations moved out of `LangGraphAgent`
-- [ ] `tests/` exists and `make check` passes
+- [ ] `make check` passes (lint + typecheck + tests) after your rewrite
 - [ ] Eval metrics in [evals/metrics/prompts/](../evals/metrics/prompts/) rewritten for your domain
 
 ## When this template is the wrong fit

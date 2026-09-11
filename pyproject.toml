@@ -67,12 +67,16 @@ dev = [
     "pyright>=1.1.390",
     "ruff>=0.11.4",
 ]
-test = ["httpx>=0.28.1", "pytest>=8.3.5"]
+test = ["httpx>=0.28.1", "pytest>=8.3.5", "pytest-asyncio>=0.25.0"]
 
 
 [tool.pytest.ini_options]
 markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
 python_files = ["test_*.py", "*_test.py", "tests.py"]
+testpaths = ["tests"]
+# Async tests are the norm here, so every coroutine test runs without a marker.
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 
 [tool.black]
 line-length = 119
@@ -126,6 +130,9 @@ convention = "google"
 # Ignore `E402` (import violations) in all `__init__.py` files
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["E402"]
+# Test names are the documentation here; requiring a docstring on every test
+# class and method adds noise without adding meaning.
+"tests/**" = ["D101", "D102", "D103", "D107"]
 
 [tool.pyright]
 include = ["app", "evals", "frontend"]

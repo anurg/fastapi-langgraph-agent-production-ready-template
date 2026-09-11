@@ -117,6 +117,18 @@ The parts you'll most likely change:
 | LLM models & fallback order | `app/services/llm.py` → `LLMRegistry.LLMS` |
 | Memory collection name | `LONG_TERM_MEMORY_COLLECTION_NAME` in `.env` |
 
+## Running the tests
+
+```bash
+make test          # pytest suite, APP_ENV=test
+make check         # lint + typecheck + tests
+```
+
+The suite needs nothing running — no database, no Valkey, no API key, no network. The LLM is faked at
+the service boundary and the agent graph is compiled with an in-memory checkpointer. See
+[Using as a Template](using-as-a-template.md#step-6--extend-the-tests) for how the fixtures work and
+what is still uncovered.
+
 ## Running pre-commit hooks
 
 Hooks run automatically on `git commit`. To run manually:

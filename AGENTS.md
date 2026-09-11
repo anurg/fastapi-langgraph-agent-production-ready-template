@@ -11,7 +11,8 @@ make ui                   # Streamlit frontend console (port 8501)
 make lint                 # ruff check .
 make format               # ruff format .
 make typecheck            # uv run pyright (static type check)
-make check                # lint + typecheck
+make test                 # Run the pytest suite (APP_ENV=test)
+make check                # lint + typecheck + test
 make eval                 # Run LLM evals (interactive)
 make eval-quick           # Run LLM evals (default settings)
 make migrate              # Run DB migrations to latest (Alembic)
@@ -43,6 +44,7 @@ app/
   utils/           # Shared utilities
 frontend/          # Streamlit console (app.py, api_client.py, state.py, views/)
 evals/             # LLM evaluation framework (Langfuse-based)
+tests/             # Pytest suite (runs with no infrastructure)
 scripts/           # Environment setup, Docker build scripts
 ```
 
@@ -153,6 +155,13 @@ This is a production-ready AI agent application built with:
 
 ## Testing & Evaluation
 
+- Tests live in `tests/` and run with no infrastructure: `make test` (sets `APP_ENV=test`)
+- Async tests need no marker — `asyncio_mode = "auto"` is set in `pyproject.toml`
+- Set environment variables at module scope in `tests/conftest.py`, above the `app.*` imports;
+  several app modules build singletons at import time
+- Fake the LLM at the service boundary (`FakeLLMService`), not the model boundary, and pass a
+  `MemorySaver` to `create_graph(checkpointer=...)` to avoid Postgres
+- Assert on graph routing and state, never on model wording
 - Implement metric-based evaluations for LLM outputs (see `evals/` directory)
 - Create custom evaluation metrics as markdown files in `evals/metrics/prompts/`
 - Use Langfuse traces for evaluation data sources

@@ -16,6 +16,7 @@ from langchain_core.messages import (
     ToolMessage,
     convert_to_openai_messages,
 )
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.errors import GraphInterrupt
 from langgraph.graph import (
@@ -211,8 +212,13 @@ class LangGraphAgent:
 
         return Command(update={"messages": outputs}, goto="chat")
 
-    async def create_graph(self) -> CompiledStateGraph:
+    async def create_graph(self, checkpointer: Optional[BaseCheckpointSaver] = None) -> CompiledStateGraph:
         """Create and configure the LangGraph workflow.
+
+        Args:
+            checkpointer: Override the checkpointer. Production leaves this as
+                ``None`` so the graph is backed by ``AsyncPostgresSaver``; tests
+                pass an in-memory saver to exercise the graph without a database.
 
         Returns:
             CompiledStateGraph: The configured LangGraph instance, always with a checkpointer.
@@ -233,10 +239,11 @@ class LangGraphAgent:
                 graph_builder.set_entry_point("chat")
                 graph_builder.set_finish_point("chat")
 
-                # Raises if the pool cannot be created — no checkpointer, no service.
-                connection_pool = await self._get_connection_pool()
-                checkpointer = AsyncPostgresSaver(connection_pool)
-                await checkpointer.setup()
+                if checkpointer is None:
+                    # Raises if the pool cannot be created — no checkpointer, no service.
+                    connection_pool = await self._get_connection_pool()
+                    checkpointer = AsyncPostgresSaver(connection_pool)
+                    await checkpointer.setup()
 
                 self._graph = graph_builder.compile(
                     checkpointer=checkpointer, name=f"{settings.PROJECT_NAME} Agent ({settings.ENVIRONMENT.value})"

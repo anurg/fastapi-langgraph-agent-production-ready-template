@@ -99,7 +99,13 @@ format:
 typecheck:
 	uv run pyright
 
-check: lint typecheck
+test:
+	APP_ENV=test uv run pytest -q
+
+test-verbose:
+	APP_ENV=test uv run pytest -vv
+
+check: lint typecheck test
 	@echo "All checks passed"
 
 pre-commit:
@@ -212,7 +218,9 @@ help:
 	@echo "  lint                 Ruff lint check"
 	@echo "  format               Ruff format"
 	@echo "  typecheck            Pyright static type check"
-	@echo "  check                Run lint + typecheck"
+	@echo "  test                 Run the pytest suite (APP_ENV=test)"
+	@echo "  test-verbose         Run the pytest suite, verbose"
+	@echo "  check                Run lint + typecheck + test"
 	@echo "  pre-commit           Run all pre-commit hooks"
 	@echo "  pre-commit-update    Update pre-commit hook versions"
 	@echo ""
@@ -236,7 +244,7 @@ help:
 	@echo "Misc:"
 	@echo "  clean                Remove .venv, __pycache__, .pytest_cache"
 
-.PHONY: install dev staging prod _serve \
+.PHONY: install dev staging prod _serve test test-verbose \
         migrate migration migrate-downgrade migrate-history \
         eval eval-quick eval-no-report \
         lint format typecheck check pre-commit pre-commit-update \

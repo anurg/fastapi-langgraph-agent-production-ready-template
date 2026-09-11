@@ -105,6 +105,7 @@ This works as a drop-in replacement anywhere `ChatOpenAI` is used in your LangGr
 - **Alembic** migrations; optional Valkey/Redis cache layer
 - **Structured logging** with request/session/user context on every line
 - **Streamlit console** covering the full API — auth, chat sessions, streaming replies
+- **Test suite** that runs with no infrastructure — no database, API key, or network needed
 
 ## Quickstart
 
@@ -299,6 +300,7 @@ app/
   services/        # LLM, database, memory services
 alembic/           # Database migrations
 evals/             # LLM evaluation framework
+tests/             # Pytest suite (no infrastructure required)
 frontend/          # Streamlit console
   app.py           # Entry point
   api_client.py    # Typed client for the agent API
@@ -308,7 +310,7 @@ frontend/          # Streamlit console
 
 ## Contributing
 
-PRs welcome. Please read [docs/getting-started.md](docs/getting-started.md) to get your environment set up, then follow the coding conventions in [AGENTS.md](AGENTS.md).
+PRs welcome. Please read [docs/getting-started.md](docs/getting-started.md) to get your environment set up, then follow the coding conventions in [AGENTS.md](AGENTS.md). Run `make check` (lint + typecheck + tests) before opening a PR — CI runs the same checks.
 
 Report security issues privately — see [SECURITY.md](SECURITY.md).
 
@@ -344,6 +346,9 @@ Drop a LangChain `@tool`-decorated function in `app/core/langgraph/tools/` and r
 
 **How does the LLM service handle failures?**
 Two layers: (1) per-call exponential-backoff retry via `tenacity`, (2) **circular fallback** — if the active model exhausts its retries, the service rotates to the next model in `LLMRegistry` and continues. A total timeout budget caps the whole call so latency stays bounded. See [docs/llm-service.md](docs/llm-service.md).
+
+**How do I run the tests?**
+`make test` runs the suite with `APP_ENV=test`. Nothing needs to be running — the LLM is faked at the service boundary and the agent graph uses an in-memory checkpointer, so there is no database, Valkey, or API key involved. `make check` runs lint, typecheck and tests together.
 
 **Can I use this without Langfuse?**
 Yes. Set `LANGFUSE_TRACING_ENABLED=false` (or omit the Langfuse keys). The agent runs unchanged; structured logs still capture request/session/user context.
