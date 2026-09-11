@@ -87,6 +87,11 @@ This is a production-ready AI agent application built with:
 - All routes must have rate limiting decorators
 - Use dependency injection for services, database connections, and auth
 - All database operations must be async
+- **Validation constraints belong on inbound models only.** Length caps and content
+  filters go on request schemas (e.g. `UserMessage`), never on a model that also
+  represents LLM output, system prompts, or replayed history (`Message`). A
+  constraint on an outbound model turns a long or code-bearing reply into a 500 —
+  and if the same model parses stored history, the session stays broken.
 
 ## Code Style Conventions
 
@@ -214,6 +219,7 @@ This is a production-ready AI agent application built with:
 - ❌ Blocking I/O operations without async
 - ❌ Hardcoding secrets or API keys
 - ❌ Missing type hints on function signatures
+- ❌ Putting request validation on a schema that also carries agent output
 
 ## When Making Changes
 

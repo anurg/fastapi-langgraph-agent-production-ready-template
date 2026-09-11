@@ -15,6 +15,21 @@ AGENT_API_URL=https://api.example.com make ui   # different API
 `make ui` resolves the `ui` extra on the fly (`uv run --extra ui`), so no extra
 install step is needed. The API must be running separately (`make dev`).
 
+### Picking up code changes
+
+Streamlit reliably reloads `frontend/app.py`, but **not** modules it imports —
+and under WSL it falls back to poll-based file watching, which makes this worse.
+After editing anything under `frontend/` other than the entry point, restart the
+process:
+
+```bash
+# Ctrl-C the `make ui` terminal, then
+make ui
+```
+
+A stale process is easy to misread as a bug that "did not get fixed": the file on
+disk is correct while the running interpreter still holds the old class.
+
 ## Layout
 
 ```
@@ -74,6 +89,12 @@ and how it recovers when a session token expires.
 - **Retries.** Read-only calls (health, list sessions, get messages) retry with
   tenacity's exponential backoff. Sends are never retried, so a message cannot be
   delivered twice.
+- **Message length is capped on input only.** The composer limits a user message
+  to `MAX_MESSAGE_LENGTH` (3000), matching `MAX_USER_MESSAGE_LENGTH` on the API.
+  Agent replies are uncapped in both `ChatMessage` and the API's `Message` schema.
+  They have to be: a capped reply model raises `ValidationError` on a long answer,
+  and because the same model parses `GET /chatbot/messages`, that failure makes
+  the whole session unreadable rather than just losing one turn.
 - **Password rules** are checked client-side before calling `/auth/register`,
   which is limited to 10 requests per hour.
 - **Rate limits** surface as a plain "Rate limit reached" message rather than a
