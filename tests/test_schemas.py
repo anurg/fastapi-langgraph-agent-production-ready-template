@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from app.schemas import (
     ChatRequest,
     Message,
+    UserMessage,
 )
 from app.schemas.chat import SessionTitle
 
@@ -23,29 +24,42 @@ class TestMessage:
         with pytest.raises(ValidationError):
             Message(role="user", content="")
 
-    def test_rejects_content_over_the_length_cap(self) -> None:
-        with pytest.raises(ValidationError):
-            Message(role="user", content="x" * 3001)
+    def test_does_not_cap_content_length(self) -> None:
+        """Message carries agent output too — see tests/test_long_response_regression.py."""
+        assert len(Message(role="assistant", content="x" * 10_000).content) == 10_000
 
-    def test_accepts_content_at_exactly_the_cap(self) -> None:
-        assert len(Message(role="user", content="x" * 3000).content) == 3000
+    def test_does_not_reject_script_tags(self) -> None:
+        content = "<script>alert(1)</script>"
 
-    def test_rejects_script_tags(self) -> None:
-        with pytest.raises(ValidationError, match="harmful script tags"):
-            Message(role="user", content="<script>alert(1)</script>")
-
-    def test_rejects_script_tags_case_insensitively(self) -> None:
-        with pytest.raises(ValidationError, match="harmful script tags"):
-            Message(role="user", content="<SCRIPT>alert(1)</SCRIPT>")
-
-    def test_rejects_null_bytes(self) -> None:
-        with pytest.raises(ValidationError, match="null bytes"):
-            Message(role="user", content="bad\0value")
+        assert Message(role="assistant", content=content).content == content
 
     def test_ignores_unknown_fields_rather_than_failing(self) -> None:
         message = Message(role="user", content="x", unexpected="ignored")  # pyright: ignore[reportCallIssue]
 
         assert not hasattr(message, "unexpected")
+
+
+class TestUserMessage:
+    """Inbound validation lives here, not on the shared Message model."""
+
+    def test_accepts_content_at_exactly_the_cap(self) -> None:
+        assert len(UserMessage(role="user", content="x" * 3000).content) == 3000
+
+    def test_rejects_content_over_the_length_cap(self) -> None:
+        with pytest.raises(ValidationError):
+            UserMessage(role="user", content="x" * 3001)
+
+    def test_rejects_script_tags(self) -> None:
+        with pytest.raises(ValidationError, match="harmful script tags"):
+            UserMessage(role="user", content="<script>alert(1)</script>")
+
+    def test_rejects_script_tags_case_insensitively(self) -> None:
+        with pytest.raises(ValidationError, match="harmful script tags"):
+            UserMessage(role="user", content="<SCRIPT>alert(1)</SCRIPT>")
+
+    def test_rejects_null_bytes(self) -> None:
+        with pytest.raises(ValidationError, match="null bytes"):
+            UserMessage(role="user", content="bad\0value")
 
 
 class TestChatRequest:
@@ -54,7 +68,7 @@ class TestChatRequest:
             ChatRequest(messages=[])
 
     def test_accepts_a_single_message(self) -> None:
-        assert len(ChatRequest(messages=[Message(role="user", content="hi")]).messages) == 1
+        assert len(ChatRequest(messages=[UserMessage(role="user", content="hi")]).messages) == 1
 
     def test_rejects_a_request_whose_nested_message_is_invalid(self) -> None:
         with pytest.raises(ValidationError):

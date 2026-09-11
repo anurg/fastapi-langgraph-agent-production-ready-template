@@ -4,6 +4,7 @@ import asyncio
 from typing import (
     AsyncGenerator,
     Optional,
+    Sequence,
     cast,
 )
 from urllib.parse import quote_plus
@@ -274,7 +275,7 @@ class LangGraphAgent:
 
     async def get_response(
         self,
-        messages: list[Message],
+        messages: Sequence[Message],
         session_id: str,
         user_id: Optional[str] = None,
         username: Optional[str] = None,
@@ -282,7 +283,7 @@ class LangGraphAgent:
         """Get a response from the LLM.
 
         Args:
-            messages (list[Message]): The messages to send to the LLM.
+            messages (Sequence[Message]): The messages to send to the LLM.
             session_id (str): The session ID for the conversation.
             user_id (Optional[str]): The user ID for the conversation.
             username (Optional[str]): The display name of the user.
@@ -345,7 +346,7 @@ class LangGraphAgent:
 
     async def get_stream_response(
         self,
-        messages: list[Message],
+        messages: Sequence[Message],
         session_id: str,
         user_id: Optional[str] = None,
         username: Optional[str] = None,
@@ -353,7 +354,7 @@ class LangGraphAgent:
         """Get a stream response from the LLM.
 
         Args:
-            messages (list[Message]): The messages to send to the LLM.
+            messages (Sequence[Message]): The messages to send to the LLM.
             session_id (str): The session ID for the conversation.
             user_id (Optional[str]): The user ID for the conversation.
             username (Optional[str]): The display name of the user.

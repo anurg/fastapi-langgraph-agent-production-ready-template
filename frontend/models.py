@@ -16,6 +16,12 @@ from pydantic import (
 )
 
 MAX_MESSAGE_LENGTH = 3000
+"""Cap on what the composer accepts from the user.
+
+Mirrors ``MAX_USER_MESSAGE_LENGTH`` on the API. It bounds *input* only — agent
+replies are whatever length the model produced, and capping them here would make a
+long answer unparseable and take the whole transcript down with it.
+"""
 
 
 class Token(BaseModel):
@@ -76,11 +82,12 @@ class ChatMessage(BaseModel):
 
     Attributes:
         role: Who produced the message.
-        content: The message text.
+        content: The message text. Uncapped — this model carries agent replies as
+            well as user input; the composer enforces MAX_MESSAGE_LENGTH on input.
     """
 
     role: Literal["user", "assistant", "system"]
-    content: str = Field(..., min_length=1, max_length=MAX_MESSAGE_LENGTH)
+    content: str = Field(..., min_length=1)
 
 
 class HealthStatus(BaseModel):

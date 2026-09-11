@@ -1,5 +1,7 @@
 """This file contains the graph utilities for the application."""
 
+from typing import Sequence
+
 import tiktoken
 from langchain_core.messages import BaseMessage
 from langchain_core.messages import trim_messages as _trim_messages
@@ -39,11 +41,11 @@ def _count_tokens_tiktoken(messages: list) -> int:
     return num_tokens
 
 
-def dump_messages(messages: list[Message]) -> list[dict]:
+def dump_messages(messages: Sequence[Message]) -> list[dict]:
     """Dump the messages to a list of dictionaries.
 
     Args:
-        messages (list[Message]): The messages to dump.
+        messages (Sequence[Message]): The messages to dump.
 
     Returns:
         list[dict]: The dumped messages.
@@ -102,11 +104,11 @@ def process_llm_response(response: BaseMessage) -> BaseMessage:
     return response
 
 
-def prepare_messages(messages: list[Message], system_prompt: str) -> list[Message]:
+def prepare_messages(messages: Sequence[Message], system_prompt: str) -> list[Message]:
     """Prepare the messages for the LLM.
 
     Args:
-        messages (list[Message]): The messages to prepare.
+        messages (Sequence[Message]): The messages to prepare.
         system_prompt (str): The system prompt to use.
 
     Returns:
@@ -135,4 +137,4 @@ def prepare_messages(messages: list[Message], system_prompt: str) -> list[Messag
         else:
             raise
 
-    return [Message(role="system", content=system_prompt)] + trimmed_messages
+    return [Message(role="system", content=system_prompt)] + list(trimmed_messages)

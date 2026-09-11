@@ -15,23 +15,54 @@ from pydantic import (
 from app.schemas.base import BaseResponse
 
 
+MAX_USER_MESSAGE_LENGTH = 3000
+"""Cap on a single inbound user message. Does not apply to anything the agent produces."""
+
+
 class Message(BaseModel):
-    """Message model for chat endpoint.
+    """A single message, in either direction.
+
+    This is the transport and representation model: it describes user input, agent
+    output, system prompts, and replayed history alike. It deliberately carries no
+    length cap and no content filtering — an assistant answer is as long as the
+    model made it, a system prompt grows with long-term memory, and a code example
+    containing ``<script>`` is content rather than an attack. Inbound validation
+    lives on :class:`UserMessage` instead.
 
     Attributes:
-        role: The role of the message sender (user or assistant).
+        role: The role of the message sender.
         content: The content of the message.
     """
 
     model_config = {"extra": "ignore"}
 
     role: Literal["user", "assistant", "system"] = Field(..., description="The role of the message sender")
-    content: str = Field(..., description="The content of the message", min_length=1, max_length=3000)
+    content: str = Field(..., description="The content of the message", min_length=1)
+
+
+class UserMessage(Message):
+    """A message accepted from a client, with the inbound validation rules applied.
+
+    Used by :class:`ChatRequest`. Keeping these constraints off :class:`Message`
+    means a long or code-bearing *reply* can never fail validation and take the
+    session down with it.
+
+    Attributes:
+        role: The role of the message sender.
+        content: The content of the message, capped and screened.
+    """
+
+    content: str = Field(
+        ...,
+        description="The content of the message",
+        min_length=1,
+        max_length=MAX_USER_MESSAGE_LENGTH,
+    )
 
     @field_validator("content")
     @classmethod
     def validate_content(cls, v: str) -> str:
-        """Validate the message content.
+        """Validate inbound message content.
 
         Args:
             v: The content to validate
@@ -60,7 +91,7 @@ class ChatRequest(BaseModel):
         messages: List of messages in the conversation.
     """
 
-    messages: List[Message] = Field(
+    messages: List[UserMessage] = Field(
         ...,
         description="List of messages in the conversation",
         min_length=1,
